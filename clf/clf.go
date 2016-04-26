@@ -20,58 +20,63 @@ type Line struct {
 	Bytes int
 }
 
+//TODO add a String method? print - for missing ones
+
 // The Parse function parse a common log format line from a the string s.
+// Fields omitted with - (or additionally [-] and "-" for date and request
+// respectively) in s will remain zeroed.
 func Parse(s string) (*Line, error) {
 	var l Line
 	r := bufio.NewReader(strings.NewReader(s))
 
 	// Host
 	if h, err := r.ReadString(' '); err == io.EOF {
-		l.Host = h
+		l.host(h)
 		return &l, nil
 	} else if err != nil {
 		return nil, err //TODO more error context
 	} else {
-		l.Host = h[:len(h)-1]
+		l.host(h[:len(h)-1])
 	}
 
 	// Ident
 	if i, err := r.ReadString(' '); err == io.EOF {
-		l.Ident = i
+		l.ident(i)
 		return &l, nil
 	} else if err != nil {
 		return nil, err //TODO more error context
 	} else {
-		l.Ident = i[:len(i)-1]
+		l.ident(i[:len(i)-1])
 	}
 
 	// AuthUser
 	if a, err := r.ReadString(' '); err == io.EOF {
-		l.AuthUser = a
+		l.authUser(a)
 		return &l, nil
 	} else if err != nil {
 		return nil, err //TODO more error context
 	} else {
-		l.AuthUser = a[:len(a)-1]
+		l.authUser(a[:len(a)-1])
 	}
 
 	// Date
-	if rune, _, err := r.ReadRune(); err == io.EOF {
+	rune, _, err := r.ReadRune()
+	if err == io.EOF {
 		return &l, nil
 	} else if err != nil {
 		return nil, err //TODO more error context
-	} else if rune != '[' {
-		return nil, err //TODO more error context
-	}
-	if d, err := r.ReadString(']'); err == io.EOF {
-		return nil, err //TODO more context
-	} else if err != nil {
-		return nil, err //TODO more context
-	} else {
-		if t, err := time.Parse(layout, d[:len(d)-1]); err != nil {
+	} else if rune != '-' {
+		if rune != '[' {
+			return nil, err //TODO more error context
+		}
+		if d, err := r.ReadString(']'); err == io.EOF {
+			return nil, err //TODO more context
+		} else if err != nil {
 			return nil, err //TODO more context
 		} else {
-			l.Date = t
+			if err := l.date(d[:len(d) - 1]); err != nil {
+				return nil, err //TODO more context
+			}
 		}
 	}
 
@@ -84,19 +89,22 @@ func Parse(s string) (*Line, error) {
 	}
 
 	// Request
-	if rune, _, err := r.ReadRune(); err == io.EOF {
+	rune, _, err = r.ReadRune()
+	if err == io.EOF {
 		return &l, nil
 	} else if err != nil {
 		return nil, err //TODO more error context
-	} else if rune != '"' {
-		return nil, err //TODO more error context
-	}
-	if req, err := r.ReadString('"'); err == io.EOF {
-		return nil, err //TODO more context
-	} else if err != nil {
-		return nil, err //TODO more context
-	} else {
-		l.Request = req[:len(req)-1]
+	} else if rune != '-' {
+		if rune != '"' {
+			return nil, err //TODO more error context
+		}
+		if req, err := r.ReadString('"'); err == io.EOF {
+			return nil, err //TODO more context
+		} else if err != nil {
+			return nil, err //TODO more context
+		} else {
+			l.request(req[:len(req) - 1])
+		}
 	}
 
 	if rune, _, err := r.ReadRune(); err == io.EOF {
@@ -109,39 +117,88 @@ func Parse(s string) (*Line, error) {
 
 	// Status
 	if s, err := r.ReadString(' '); err == io.EOF {
-		i, err := strconv.ParseInt(s, 10, 16)
-		if err != nil {
+		if err := l.status(s); err != nil {
 			return nil, err //TODO more context
 		}
-		l.Status = int(i)
 		return &l, nil
 	} else if err != nil {
 		return nil, err //TODO more error context
 	} else {
-		i, err := strconv.ParseInt(s[:len(s)-1], 10, 16)
-		if err != nil {
+		if err := l.status(s[:len(s)-1]); err != nil {
 			return nil, err //TODO more context
 		}
-		l.Status = int(i)
 	}
 
 	// Bytes
 	if b, err := r.ReadString(' '); err == io.EOF {
-		i, err := strconv.ParseInt(b, 10, 16)
-		if err != nil {
+		if err := l.bytes(b); err != nil {
 			return nil, err //TODO more context
 		}
-		l.Bytes = int(i)
 		return &l, nil
 	} else if err != nil {
 		return nil, err //TODO more error context
 	} else {
-		i, err := strconv.ParseInt(b[:len(b)-1], 10, 16)
-		if err != nil {
+		if err := l.bytes(b[:len(b)-1]); err != nil {
 			return nil, err //TODO more context
 		}
-		l.Bytes = int(i)
 	}
 
 	return &l, nil
+}
+
+func (l *Line) host(h string) {
+	if h != "-" {
+		l.Host = h
+	}
+}
+
+func (l *Line) ident(i string) {
+	if i != "-" {
+		l.Ident = i
+	}
+}
+
+func (l *Line) authUser(au string) {
+	if au != "-" {
+		l.AuthUser = au
+	}
+}
+
+func (l *Line) date(d string) error {
+	if d != "-" {
+		if t, err := time.Parse(layout, d); err != nil {
+			return err //TODO more context
+		} else {
+			l.Date = t
+		}
+	}
+	return nil
+}
+
+func (l *Line) request(r string) {
+	if r != "-" {
+		l.Request = r
+	}
+}
+
+func (l *Line) status(s string) error {
+	if s != "-" {
+		i, err := strconv.ParseInt(s, 10, 16)
+		if err != nil {
+			return err //TODO more context
+		}
+		l.Status = int(i)
+	}
+	return nil
+}
+
+func (l *Line) bytes(b string) error {
+	if b != "-" {
+		i, err := strconv.ParseInt(b, 10, 16)
+		if err != nil {
+			return err //TODO more context
+		}
+		l.Bytes = int(i)
+	}
+	return nil
 }
