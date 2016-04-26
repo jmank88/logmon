@@ -1,26 +1,66 @@
 package clf
 
 import (
-	"time"
-	"strings"
 	"bufio"
+	"bytes"
 	"io"
 	"strconv"
+	"strings"
+	"time"
 )
 
 const layout = "_2/Jan/2006:15:04:05 -0700"
 
 type Line struct {
-	Host string
-	Ident string
+	Host     string
+	Ident    string
 	AuthUser string
-	Date time.Time
-	Request string
-	Status int
-	Bytes int
+	Date     time.Time
+	Request  string
+	Status   int
+	Bytes    int
 }
 
-//TODO add a String method? print - for missing ones
+// TODO doc
+func (l *Line) String() string {
+	var b bytes.Buffer
+
+	strField := func(s string) {
+		if s == "" {
+			_, _ = b.WriteRune('-')
+		} else {
+			_, _ = b.WriteString(s)
+		}
+		_, _ = b.WriteRune(' ')
+	}
+
+	strField(l.Host)
+	strField(l.Ident)
+	strField(l.AuthUser)
+
+	if l.Date == (time.Time{}) {
+		_, _ = b.WriteRune('-')
+	} else {
+		_, _ = b.WriteString(l.Date.Format(layout))
+	}
+	_, _ = b.WriteRune(' ')
+
+	strField(l.Request)
+
+	intField := func(i int) {
+		if i == 0 {
+			_, _ = b.WriteRune('-')
+		} else {
+			_, _ = b.WriteString(strconv.FormatInt(int64(i), 10))
+		}
+	}
+
+	intField(l.Status)
+	_, _ = b.WriteRune(' ')
+	intField(l.Bytes)
+
+	return b.String()
+}
 
 // The Parse function parse a common log format line from a the string s.
 // Fields omitted with - (or additionally [-] and "-" for date and request
@@ -74,7 +114,7 @@ func Parse(s string) (*Line, error) {
 		} else if err != nil {
 			return nil, err //TODO more context
 		} else {
-			if err := l.date(d[:len(d) - 1]); err != nil {
+			if err := l.date(d[:len(d)-1]); err != nil {
 				return nil, err //TODO more context
 			}
 		}
@@ -103,7 +143,7 @@ func Parse(s string) (*Line, error) {
 		} else if err != nil {
 			return nil, err //TODO more context
 		} else {
-			l.request(req[:len(req) - 1])
+			l.request(req[:len(req)-1])
 		}
 	}
 
@@ -183,22 +223,22 @@ func (l *Line) request(r string) {
 
 func (l *Line) status(s string) error {
 	if s != "-" {
-		i, err := strconv.ParseInt(s, 10, 16)
+		i, err := strconv.Atoi(s)
 		if err != nil {
 			return err //TODO more context
 		}
-		l.Status = int(i)
+		l.Status = i
 	}
 	return nil
 }
 
 func (l *Line) bytes(b string) error {
 	if b != "-" {
-		i, err := strconv.ParseInt(b, 10, 16)
+		i, err := strconv.Atoi(b)
 		if err != nil {
 			return err //TODO more context
 		}
-		l.Bytes = int(i)
+		l.Bytes = i
 	}
 	return nil
 }
