@@ -2,7 +2,7 @@ package clf
 
 import (
 	"bufio"
-	"bytes"
+	"fmt"
 	"io"
 	"strconv"
 	"strings"
@@ -21,45 +21,77 @@ type Line struct {
 	Bytes    int
 }
 
-// TODO doc
+// The String method formats a Line as a common log format string.
+// Zeroed fields will be printed as '-'.
 func (l *Line) String() string {
-	var b bytes.Buffer
+	return fmt.Sprintf("%s %s %s %s %s %s %s",
+		&str{l.Host},
+		&str{l.Ident},
+		&str{l.AuthUser},
+		&dateStr{l.Date},
+		&reqStr{l.Request},
+		&intStr{l.Status},
+		&intStr{l.Bytes})
+}
 
-	strField := func(s string) {
-		if s == "" {
-			_, _ = b.WriteRune('-')
-		} else {
-			_, _ = b.WriteString(s)
-		}
-		_, _ = b.WriteRune(' ')
-	}
+type str struct {
+	string
+}
 
-	strField(l.Host)
-	strField(l.Ident)
-	strField(l.AuthUser)
-
-	if l.Date == (time.Time{}) {
-		_, _ = b.WriteRune('-')
+func (s *str) String() string {
+	if s.string == "" {
+		return "-"
 	} else {
-		_, _ = b.WriteString(l.Date.Format(layout))
+		return s.string
 	}
-	_, _ = b.WriteRune(' ')
+}
 
-	strField(l.Request)
+type dateStr struct {
+	time.Time
+}
 
-	intField := func(i int) {
-		if i == 0 {
-			_, _ = b.WriteRune('-')
-		} else {
-			_, _ = b.WriteString(strconv.FormatInt(int64(i), 10))
-		}
+func (s *dateStr) String() string {
+	if s.Time == (time.Time{}) {
+		return "-"
+	} else {
+		return "[" + s.Time.Format(layout) + "]"
 	}
+}
 
-	intField(l.Status)
-	_, _ = b.WriteRune(' ')
-	intField(l.Bytes)
+type reqStr struct {
+	string
+}
 
-	return b.String()
+func (s *reqStr) String() string {
+	if s.string == "" {
+		return "-"
+	} else {
+		return `"` + s.string + `"`
+	}
+}
+
+type intStr struct {
+	int
+}
+
+func (s *intStr) String() string {
+	if s.int == 0 {
+		return "-"
+	} else {
+		return strconv.FormatInt(int64(s.int), 10)
+	}
+}
+
+// The RequestFields method returns request fields for a correctly formatted request,
+// otherwise returns empty strings.
+func (l *Line) RequestFields() (method, resource, protocol string) {
+	splits := strings.Split(l.Request, " ")
+	if len(splits) == 3 {
+		method = splits[0]
+		resource = splits[1]
+		protocol = splits[2]
+	}
+	return
 }
 
 // The Parse function parse a common log format line from a the string s.
@@ -74,7 +106,10 @@ func Parse(s string) (*Line, error) {
 		l.host(h)
 		return &l, nil
 	} else if err != nil {
-		return nil, err //TODO more error context
+		return nil, &Err{
+			cause: err,
+			msg:   "failed to read host string",
+		}
 	} else {
 		l.host(h[:len(h)-1])
 	}
@@ -84,7 +119,10 @@ func Parse(s string) (*Line, error) {
 		l.ident(i)
 		return &l, nil
 	} else if err != nil {
-		return nil, err //TODO more error context
+		return nil, &Err{
+			cause: err,
+			msg:   "failed to read ident string",
+		}
 	} else {
 		l.ident(i[:len(i)-1])
 	}
@@ -94,7 +132,10 @@ func Parse(s string) (*Line, error) {
 		l.authUser(a)
 		return &l, nil
 	} else if err != nil {
-		return nil, err //TODO more error context
+		return nil, &Err{
+			cause: err,
+			msg:   "failed to read auth user string",
+		}
 	} else {
 		l.authUser(a[:len(a)-1])
 	}
@@ -104,18 +145,27 @@ func Parse(s string) (*Line, error) {
 	if err == io.EOF {
 		return &l, nil
 	} else if err != nil {
-		return nil, err //TODO more error context
+		return nil, &Err{
+			cause: err,
+			msg:   "failed to read first rune of date",
+		}
 	} else if rune != '-' {
 		if rune != '[' {
-			return nil, err //TODO more error context
+			return nil, fmt.Errorf("expected '-' or '[' at start of date, but got: %s", rune)
 		}
 		if d, err := r.ReadString(']'); err == io.EOF {
-			return nil, err //TODO more context
+			return nil, &Err{
+				cause: err,
+				msg:   "unexpected end of file in middle of date string",
+			}
 		} else if err != nil {
-			return nil, err //TODO more context
+			return nil, &Err{
+				cause: err,
+				msg:   "failed to read date string",
+			}
 		} else {
 			if err := l.date(d[:len(d)-1]); err != nil {
-				return nil, err //TODO more context
+				return nil, err
 			}
 		}
 	}
@@ -123,9 +173,12 @@ func Parse(s string) (*Line, error) {
 	if rune, _, err := r.ReadRune(); err == io.EOF {
 		return &l, nil
 	} else if err != nil {
-		return nil, err //TODO more context
+		return nil, &Err{
+			cause: err,
+			msg:   "failed to read rune following date",
+		}
 	} else if rune != ' ' {
-		return nil, nil //TODO error
+		return nil, fmt.Errorf("expected ' ' following date, but got: %s", rune)
 	}
 
 	// Request
@@ -133,15 +186,24 @@ func Parse(s string) (*Line, error) {
 	if err == io.EOF {
 		return &l, nil
 	} else if err != nil {
-		return nil, err //TODO more error context
+		return nil, &Err{
+			cause: err,
+			msg:   "failed to read first rune of request",
+		}
 	} else if rune != '-' {
 		if rune != '"' {
-			return nil, err //TODO more error context
+			return nil, fmt.Errorf(`expected '-' or '"' at start of request, but got : %s`, rune)
 		}
 		if req, err := r.ReadString('"'); err == io.EOF {
-			return nil, err //TODO more context
+			return nil, &Err{
+				cause: err,
+				msg:   "unexpected end of file in middle of request string",
+			}
 		} else if err != nil {
-			return nil, err //TODO more context
+			return nil, &Err{
+				cause: err,
+				msg:   "failed to read request string",
+			}
 		} else {
 			l.request(req[:len(req)-1])
 		}
@@ -150,36 +212,45 @@ func Parse(s string) (*Line, error) {
 	if rune, _, err := r.ReadRune(); err == io.EOF {
 		return &l, nil
 	} else if err != nil {
-		return nil, err //TODO more context
+		return nil, &Err{
+			cause: err,
+			msg:   "failed to read rune following request",
+		}
 	} else if rune != ' ' {
-		return nil, nil //TODO error
+		return nil, fmt.Errorf("expected ' ' following request but got: %s", rune)
 	}
 
 	// Status
 	if s, err := r.ReadString(' '); err == io.EOF {
 		if err := l.status(s); err != nil {
-			return nil, err //TODO more context
+			return nil, err
 		}
 		return &l, nil
 	} else if err != nil {
-		return nil, err //TODO more error context
+		return nil, &Err{
+			cause: err,
+			msg:   "failed to read status string",
+		}
 	} else {
 		if err := l.status(s[:len(s)-1]); err != nil {
-			return nil, err //TODO more context
+			return nil, err
 		}
 	}
 
 	// Bytes
 	if b, err := r.ReadString(' '); err == io.EOF {
 		if err := l.bytes(b); err != nil {
-			return nil, err //TODO more context
+			return nil, err
 		}
 		return &l, nil
 	} else if err != nil {
-		return nil, err //TODO more error context
+		return nil, &Err{
+			cause: err,
+			msg:   "failed to read bytes string",
+		}
 	} else {
 		if err := l.bytes(b[:len(b)-1]); err != nil {
-			return nil, err //TODO more context
+			return nil, err
 		}
 	}
 
@@ -207,7 +278,10 @@ func (l *Line) authUser(au string) {
 func (l *Line) date(d string) error {
 	if d != "-" {
 		if t, err := time.Parse(layout, d); err != nil {
-			return err //TODO more context
+			return &Err{
+				cause: err,
+				msg:   "failed to parse date",
+			}
 		} else {
 			l.Date = t
 		}
@@ -225,7 +299,10 @@ func (l *Line) status(s string) error {
 	if s != "-" {
 		i, err := strconv.Atoi(s)
 		if err != nil {
-			return err //TODO more context
+			return &Err{
+				cause: err,
+				msg:   "failed to parse status",
+			}
 		}
 		l.Status = i
 	}
@@ -236,9 +313,21 @@ func (l *Line) bytes(b string) error {
 	if b != "-" {
 		i, err := strconv.Atoi(b)
 		if err != nil {
-			return err //TODO more context
+			return &Err{
+				cause: err,
+				msg:   "failed to parse bytes",
+			}
 		}
 		l.Bytes = i
 	}
 	return nil
+}
+
+type Err struct {
+	cause error
+	msg   string
+}
+
+func (e *Err) Error() string {
+	return fmt.Sprintf("%s: %s", e.msg, e.cause)
 }
