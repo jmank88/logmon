@@ -27,8 +27,8 @@ func main() {
 		}
 	}
 
-	lm := logmon.NewLogmon(input, os.Stdout, logmon.DefaultBucketDuration, logmon.DefaultHighTrafficDuration, *htt)
-	if err := lm.Monitor(); err != nil {
+	err := logmon.Monitor(input, os.Stdout, logmon.DefaultBucketDuration, logmon.DefaultHighTrafficDuration, *htt)
+	if err != nil {
 		log.Println("monitoring quit unexpectedly: ", err)
 	}
 }

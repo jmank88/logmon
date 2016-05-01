@@ -17,14 +17,8 @@ const (
 )
 
 //TODO doc
-type logmon struct {
-	// Log source to be read from.
-	*bufio.Reader
-	// Output will be written here.
+type logger struct {
 	io.Writer
-
-	//TODO doc these
-	done chan empty
 
 	// Every bucket will be at least this long.
 	bucketDuration time.Duration
@@ -45,35 +39,35 @@ type logmon struct {
 	highTraffic bool
 }
 
-func NewLogmon(r io.Reader, w io.Writer, bucketDuration, httDuration time.Duration, highTrafficThreshold int) *logmon {
-	bucketCnt := int(httDuration / bucketDuration)
+//TODO doc
+func Monitor(r io.Reader, w io.Writer, bucketDuration, httDuration time.Duration, highTrafficThreshold int) error {
+	// Lines are sent to the logger through this channel
+	lines := make(chan *clf.Line)
+	// Logger signals completion on this channel.
+	done := make(chan empty)
 
-	return &logmon{
-		Reader:               bufio.NewReader(r),
+	br := bufio.NewReader(r)
+
+	bucketCnt := int(httDuration/bucketDuration) + 1
+	l := &logger{
 		Writer:               w,
-		done:                 make(chan empty),
 		bucketDuration:       bucketDuration,
 		httDuration:          httDuration,
 		buckets:              newBuckets(bucketCnt),
 		highTrafficThreshold: highTrafficThreshold,
 	}
-}
 
-//TODO doc
-func (l *logmon) Monitor() error {
-	// Each line read is sent to the logger through this channel
-	lines := make(chan *clf.Line)
-	go l.log(lines)
+	go l.log(lines, done)
 
 	defer func() {
 		// Signal completion to the logger, and block until it exits.
 		close(lines)
-		<-l.done
+		<-done
 	}()
 
 	var eof bool
 	for !eof {
-		s, err := l.ReadString('\n')
+		s, err := br.ReadString('\n')
 		if err == io.EOF {
 			eof = true
 		} else if err != nil {
@@ -93,11 +87,11 @@ func (l *logmon) Monitor() error {
 	return nil
 }
 
-func (l *logmon) log(lines chan *clf.Line) {
+func (l *logger) log(lines chan *clf.Line, done chan empty) {
 	defer func() {
 		// Flush and signal completion
 		l.flushBucket()
-		l.done <- empty{}
+		done <- empty{}
 	}()
 	for {
 		select {
@@ -122,7 +116,7 @@ func (l *logmon) log(lines chan *clf.Line) {
 	}
 }
 
-func (l *logmon) handle(line *clf.Line) {
+func (l *logger) handle(line *clf.Line) {
 	if l.currentBucket.start == (time.Time{}) {
 		l.newBucket(line.Date)
 	}
@@ -146,7 +140,7 @@ func (l *logmon) handle(line *clf.Line) {
 }
 
 //TODO doc
-func (l *logmon) flushBucket() {
+func (l *logger) flushBucket() {
 	fmt.Fprintf(l, "%s - %s\n", l.currentBucket.start.Format(clf.Layout), l.currentBucket.end.Format(clf.Layout))
 	//TODO sort and limit
 	fmt.Fprintf(l, "\tSection Hits: %v\n", l.summary)
@@ -166,7 +160,7 @@ func (l *logmon) flushBucket() {
 	l.newBucket(l.currentBucket.end)
 }
 
-func (l *logmon) newBucket(s time.Time) {
+func (l *logger) newBucket(s time.Time) {
 	l.currentBucket = bucket{start: s, end: s.Add(l.bucketDuration)}
 	l.summary = make(map[string]int)
 	l.timeout = time.After(l.bucketDuration)

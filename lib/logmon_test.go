@@ -28,8 +28,8 @@ func TestMonitor(t *testing.T) {
 		}
 
 		var b bytes.Buffer
-		lm := NewLogmon(in, &b, DefaultBucketDuration, DefaultHighTrafficDuration, DefaultHighTrafficThreshold)
-		if err := lm.Monitor(); err != nil {
+		err = Monitor(in, &b, DefaultBucketDuration, DefaultHighTrafficDuration, DefaultHighTrafficThreshold)
+		if err != nil {
 			t.Fatal("unexpected error calling Monitor: ", err)
 		}
 

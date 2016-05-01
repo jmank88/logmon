@@ -1,8 +1,19 @@
 # HTTP log monitoring console program
 
-TODO example usage of binary program
+A simple console program that monitors HTTP traffic on your machine:
 
-Create a simple console program that monitors HTTP traffic on your machine:
+## Example
+
+```
+logmon -f some/log/file.txt
+
+10/Oct/2000:13:55:36 -0700 - 10/Oct/2000:13:55:46 -0700
+	Section Hits: map[http://my.site.com/pages:11]
+10/Oct/2000:13:55:46 -0700 - 10/Oct/2000:13:55:56 -0700
+	Section Hits: map[http://my.site.com/pages:1]
+```
+
+## Features
 TODO expand on each of these points
 [/] Consume an actively written-to w3c-formatted HTTP access log (https://en.wikipedia.org/wiki/Common_Log_Format)
 [/] Every 10s, display in the console the sections of the web site with the most hits (a section is defined as being what's before the second '/' in a URL. i.e. the section for "http://my.site.com/pages/create' is "http://my.site.com/pages"), as well as interesting summary statistics on the traffic as a whole.
