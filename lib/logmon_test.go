@@ -2,21 +2,35 @@ package logmon
 
 import (
 	"bytes"
-	"strings"
+	"io/ioutil"
+	"os"
 	"testing"
 	"time"
 )
 
-func TestBasic(t *testing.T) {
-	r := strings.NewReader(`127.0.0.1 user-identifier frank [10/Oct/2000:13:55:36 -0700] "GET http://my.site.com/pages/create HTTP/1.0" 200 2326`)
-	expected := `10/Oct/2000:13:55:36 -0700 - 10/Oct/2000:13:55:36 -0700
-	Section Hits: map[http://my.site.com/pages:1]
-`
-	var b bytes.Buffer
-	lm := NewLogmon(r, &b, 10*time.Second, 2*time.Minute, 10)
-	lm.Monitor()
+func TestMonitor(t *testing.T) {
+	for _, file := range []string{
+		"basic",
+	} {
+		in, err := os.Open("testdata/input/" + file + ".txt")
+		if err != nil {
+			t.Fatalf("failed to open input file %q: %s", file, err)
+		}
+		out, err := os.Open("testdata/output/basic.txt")
+		if err != nil {
+			t.Fatalf("failed to open output file %q: %s", file, err)
+		}
+		expected, err := ioutil.ReadAll(out)
+		if err != nil {
+			t.Fatalf("failed to read output file %q: ", file, err)
+		}
 
-	if b.String() != expected {
-		t.Errorf("expected:\n%s\nbut got\n%s", expected, b.String())
+		var b bytes.Buffer
+		lm := NewLogmon(in, &b, 10 * time.Second, 2 * time.Minute, 10)
+		lm.Monitor()
+
+		if !bytes.Equal(b.Bytes(), expected) {
+			t.Errorf("case %q; expected:\n%s\nbut got:\n%s", file, expected, b.String())
+		}
 	}
 }

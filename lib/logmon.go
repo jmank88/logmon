@@ -2,6 +2,7 @@ package logmon
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
 	"io"
 	"log"
@@ -9,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"bytes"
 	"github.com/jmank88/logmon/lib/internal/clf"
 )
 
