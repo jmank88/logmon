@@ -12,12 +12,13 @@ import (
 
 //TODO doc
 type logmon struct {
+	// Log source to be read from.
 	*bufio.Reader
+	// Output will be written here.
 	io.Writer
 
 	//TODO doc these
-	lines chan *clf.Line
-	done  chan empty
+	done chan empty
 
 	// Every bucket will be at least this long.
 	bucketDuration time.Duration
@@ -44,7 +45,6 @@ func NewLogmon(r io.Reader, w io.Writer, bucketDuration, httDuration time.Durati
 	return &logmon{
 		Reader:               bufio.NewReader(r),
 		Writer:               w,
-		lines:                make(chan *clf.Line),
 		done:                 make(chan empty),
 		bucketDuration:       bucketDuration,
 		httDuration:          httDuration,
@@ -53,19 +53,17 @@ func NewLogmon(r io.Reader, w io.Writer, bucketDuration, httDuration time.Durati
 	}
 }
 
-// The shutdown method signals completion to the logger, and blocks until it exits.
-func (l *logmon) shutdown() {
-	// Signal logger to quit.
-	close(l.lines)
-	// Wait for logger.
-	<-l.done
-}
-
 //TODO doc
 func (l *logmon) Monitor() error {
-	defer l.shutdown()
+	// Each line read is sent to the logger through this channel
+	lines := make(chan *clf.Line)
+	go l.log(lines)
 
-	go l.log()
+	defer func() {
+		// Signal completion to the logger, and block until it exits.
+		close(lines)
+		<-l.done
+	}()
 
 	var eof bool
 	for !eof {
@@ -84,28 +82,31 @@ func (l *logmon) Monitor() error {
 			return fmt.Errorf("failed to parse line %q: %s", s, err)
 		}
 
-		l.lines <- line
+		lines <- line
 	}
 	return nil
 }
 
-func (l *logmon) log() {
-	l.timeout = time.After(l.bucketDuration)
-loop:
+func (l *logmon) log(lines chan *clf.Line) {
+	defer func() {
+		// Flush and signal completion
+		l.flushBucket()
+		l.done <- empty{}
+	}()
 	for {
 		select {
 		// Consume any available log lines.
-		case line, ok := <-l.lines:
+		case line, ok := <-lines:
 			if !ok {
-				break loop
+				return
 			}
 			l.handle(line)
 		default:
 			// Block until another line is available, or this bucket times out.
 			select {
-			case line, ok := <-l.lines:
+			case line, ok := <-lines:
 				if !ok {
-					break loop
+					return
 				}
 				l.handle(line)
 			case <-l.timeout:
@@ -113,8 +114,6 @@ loop:
 			}
 		}
 	}
-	l.flushBucket()
-	l.done <- empty{}
 }
 
 func (l *logmon) handle(line *clf.Line) {
