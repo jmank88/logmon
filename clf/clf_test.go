@@ -7,7 +7,7 @@ import (
 )
 
 func TestParse(t *testing.T) {
-	date, err := time.Parse(layout, "10/Oct/2000:13:55:36 -0700")
+	date, err := time.Parse(Layout, "10/Oct/2000:13:55:36 -0700")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -47,7 +47,7 @@ func TestParse(t *testing.T) {
 }
 
 func TestString(t *testing.T) {
-	date, err := time.Parse(layout, "10/Oct/2000:13:55:36 -0700")
+	date, err := time.Parse(Layout, "10/Oct/2000:13:55:36 -0700")
 	if err != nil {
 		t.Fatal(err)
 	}

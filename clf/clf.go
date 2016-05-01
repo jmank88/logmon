@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-const layout = "_2/Jan/2006:15:04:05 -0700"
+const Layout = "_2/Jan/2006:15:04:05 -0700"
 
 type Line struct {
 	Host     string
@@ -54,7 +54,7 @@ func (s *dateStr) String() string {
 	if s.Time == (time.Time{}) {
 		return "-"
 	} else {
-		return "[" + s.Time.Format(layout) + "]"
+		return "[" + s.Time.Format(Layout) + "]"
 	}
 }
 
@@ -277,7 +277,7 @@ func (l *Line) authUser(au string) {
 
 func (l *Line) date(d string) error {
 	if d != "-" {
-		if t, err := time.Parse(layout, d); err != nil {
+		if t, err := time.Parse(Layout, d); err != nil {
 			return &Err{
 				cause: err,
 				msg:   "failed to parse date",
