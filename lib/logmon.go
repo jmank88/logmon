@@ -23,24 +23,23 @@ type logmon struct {
 	bucketDuration time.Duration
 	// High traffic will be measured enough recent buckets to cover at least this length.
 	httDuration time.Duration
-
-	// A slice of buckets used as a circular buffer
-	buckets   []bucket
-	bucketIdx int
+	// A high traffic alert will be triggered when the average traffic per bucket over the last httDuration exceeds this value.
+	highTrafficThreshold int
 
 	currentBucket bucket
 	// Hit counts for sections
 	summary map[string]int
 	//TODO more summary stats
 
+	*buckets
+
 	timeout <-chan time.Time
 
-	highTrafficThreshold int
-	highTraffic          bool
+	highTraffic bool
 }
 
 func NewLogmon(r io.Reader, w io.Writer, bucketDuration, httDuration time.Duration, highTrafficThreshold int) *logmon {
-	bucketCnt := httDuration / bucketDuration
+	bucketCnt := int(httDuration / bucketDuration)
 
 	return &logmon{
 		Reader:               bufio.NewReader(r),
@@ -49,7 +48,7 @@ func NewLogmon(r io.Reader, w io.Writer, bucketDuration, httDuration time.Durati
 		done:                 make(chan empty),
 		bucketDuration:       bucketDuration,
 		httDuration:          httDuration,
-		buckets:              make([]bucket, bucketCnt),
+		buckets:              newBuckets(bucketCnt),
 		highTrafficThreshold: highTrafficThreshold,
 	}
 }
@@ -123,8 +122,9 @@ func (l *logmon) handle(line *clf.Line) {
 		l.newBucket(line.Date)
 	}
 
-	//TODO handle time jumps of >1bucket here
 	if line.Date.After(l.currentBucket.start.Add(l.bucketDuration)) {
+		//TODO handle time jumps of >1bucket here
+		//if after 2*bucketDuration
 		l.flushBucket()
 	}
 
@@ -146,7 +146,17 @@ func (l *logmon) flushBucket() {
 	//TODO sort and limit
 	fmt.Fprintf(l, "\tSection Hits: %v\n", l.summary)
 
-	// TODO check for high/low traffic switch
+	l.buckets.put(l.currentBucket)
+
+	if avg := l.buckets.avgTraffic(l.currentBucket.end.Add(-l.httDuration)); avg > l.highTrafficThreshold {
+		fmt.Fprintf(l, "High traffic generated an alert - hits = %d, triggered at %s\n", avg, l.currentBucket.end.Format(clf.Layout))
+		l.highTraffic = true
+	} else {
+		if l.highTraffic {
+			fmt.Fprintf(l, "Recovered from high traffic at %s\n", l.currentBucket.end.Format(clf.Layout))
+			l.highTraffic = false
+		}
+	}
 
 	l.newBucket(l.currentBucket.end)
 }
@@ -188,6 +198,39 @@ func section(resource string) string {
 type bucket struct {
 	start, end time.Time
 	cnt        int
+}
+
+// A slice of buckets used as a circular buffer
+type buckets struct {
+	slice []bucket
+	idx   int
+}
+
+func newBuckets(cnt int) *buckets {
+	return &buckets{slice: make([]bucket, cnt)}
+}
+
+func (bs *buckets) put(b bucket) {
+	if bs.idx+1 > len(bs.slice) {
+		bs.idx = 0
+	}
+	bs.slice[bs.idx] = b
+}
+
+// The avgTraffic function returns the average traffic per bucket for
+// all buckets which overlap or follow start.
+func (bs *buckets) avgTraffic(start time.Time) int {
+	var sum, cnt int
+	for _, b := range bs.slice {
+		if b.end.After(start) {
+			sum += b.cnt
+			cnt++
+		}
+	}
+	if cnt == 0 {
+		return 0
+	}
+	return sum / cnt
 }
 
 type empty struct{}

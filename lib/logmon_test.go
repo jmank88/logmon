@@ -13,6 +13,7 @@ func TestMonitor(t *testing.T) {
 		"single-line",
 		"multi-line",
 		"multi-bucket",
+		"high-traffic",
 	} {
 		in, err := os.Open("testdata/input/" + file + ".txt")
 		if err != nil {
