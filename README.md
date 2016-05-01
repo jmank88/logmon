@@ -39,4 +39,6 @@ TODO more stats (method and protocol summary)
 
 [/] Write a test for the alerting logic
 
-Explain how you’d improve on this application design
+## Future Improvements
+
+TODO Explain how you’d improve on this application design
