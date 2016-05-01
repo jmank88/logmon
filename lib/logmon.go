@@ -16,7 +16,7 @@ const (
 	DefaultHighTrafficThreshold = 10
 )
 
-//TODO doc
+// A logger holds configuration and summary information for logging.
 type logger struct {
 	io.Writer
 
@@ -39,7 +39,9 @@ type logger struct {
 	highTraffic bool
 }
 
-//TODO doc
+// The Monitor function monitors lines read from r, and writes summaries to w.
+// The frequency of logging is controlled by intervalDuration.
+// Traffic exceeding highTrafficThreshold per intervalDuration over httDuration will trigger alerts.
 func Monitor(r io.Reader, w io.Writer, intervalDuration, httDuration time.Duration, highTrafficThreshold int) error {
 	// Lines are sent to the logger through this channel
 	lines := make(chan *clf.Line)
@@ -87,6 +89,8 @@ func Monitor(r io.Reader, w io.Writer, intervalDuration, httDuration time.Durati
 	return nil
 }
 
+// The log method logs summaries of data from lines until it is closed.
+// It sends on done when complete.
 func (l *logger) log(lines chan *clf.Line, done chan empty) {
 	defer func() {
 		// Flush and signal completion
@@ -116,6 +120,7 @@ func (l *logger) log(lines chan *clf.Line, done chan empty) {
 	}
 }
 
+// The handle method processes a single line.
 func (l *logger) handle(line *clf.Line) {
 	if l.currentInterval.start == (time.Time{}) {
 		l.newInterval(line.Date)
@@ -138,7 +143,7 @@ func (l *logger) handle(line *clf.Line) {
 	}
 }
 
-//TODO doc
+// The flushInterval method logs a summary for the current interval and starts a new one.
 func (l *logger) flushInterval() {
 	fmt.Fprintf(l, "%s - %s\n", l.currentInterval.start.Format(clf.Layout), l.currentInterval.end.Format(clf.Layout))
 	//TODO sort and limit
@@ -159,8 +164,9 @@ func (l *logger) flushInterval() {
 	l.newInterval(l.currentInterval.end)
 }
 
-func (l *logger) newInterval(s time.Time) {
-	l.currentInterval = interval{start: s, end: s.Add(l.intervalDuration)}
+// The newInterval method begins a new interval at start.
+func (l *logger) newInterval(start time.Time) {
+	l.currentInterval = interval{start: start, end: start.Add(l.intervalDuration)}
 	l.summary = make(map[string]int)
 	l.timeout = time.After(l.intervalDuration)
 }
@@ -192,13 +198,13 @@ func section(resource string) string {
 	return resource[:schema+firstSlash+secondSlash]
 }
 
-//TODO doc
+// An interval holds a hit count for a time range.
 type interval struct {
 	start, end time.Time
 	cnt        int
 }
 
-// A slice of intervals used as a circular buffer
+// A slice of intervals used as a circular buffer.
 type intervals struct {
 	slice []interval
 	idx   int
