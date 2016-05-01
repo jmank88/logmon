@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"bytes"
-	"github.com/jmank88/logmon/clf"
+	"github.com/jmank88/logmon/lib/internal/clf"
 )
 
 //TODO doc
