@@ -34,5 +34,7 @@ func main() {
 	}
 
 	lm := logmon.NewLogmon(input, os.Stdout, bucketDuration, httDuration, *highTrafficThreshold)
-	lm.Monitor()
+	if err := lm.Monitor(); err != nil {
+		log.Println("monitoring quit unexpectedly: ", err)
+	}
 }

@@ -2,11 +2,8 @@ package logmon
 
 import (
 	"bufio"
-	"bytes"
 	"fmt"
 	"io"
-	"log"
-	"net/url"
 	"strings"
 	"time"
 
@@ -54,7 +51,6 @@ func NewLogmon(r io.Reader, w io.Writer, bucketDuration, httDuration time.Durati
 		httDuration:          httDuration,
 		buckets:              make([]bucket, bucketCnt),
 		highTrafficThreshold: highTrafficThreshold,
-		summary:              make(map[string]int),
 	}
 }
 
@@ -67,7 +63,7 @@ func (l *logmon) shutdown() {
 }
 
 //TODO doc
-func (l *logmon) Monitor() {
+func (l *logmon) Monitor() error {
 	defer l.shutdown()
 
 	go l.log()
@@ -78,7 +74,7 @@ func (l *logmon) Monitor() {
 		if err == io.EOF {
 			eof = true
 		} else if err != nil {
-			log.Fatal("failed to read line: ", err)
+			return fmt.Errorf("failed to read line: ", err)
 		} else {
 			// Drop the '\n'
 			s = s[:len(s)-1]
@@ -86,11 +82,12 @@ func (l *logmon) Monitor() {
 
 		line, err := clf.Parse(s)
 		if err != nil {
-			log.Fatalf("failed to parse line %q: %s", s, err)
+			return fmt.Errorf("failed to parse line %q: %s", s, err)
 		}
 
 		l.lines <- line
 	}
+	return nil
 }
 
 func (l *logmon) log() {
@@ -112,75 +109,50 @@ loop:
 					break loop
 				}
 				l.handle(line)
-			case end := <-l.timeout:
-				l.flushBucket(end)
+			case <-l.timeout:
+				l.flushBucket()
 			}
 		}
 	}
-	//TODO send now? or nothing
-	l.flushBucket(time.Now())
+	l.flushBucket()
 	l.done <- empty{}
 }
 
 func (l *logmon) handle(line *clf.Line) {
 	if l.currentBucket.start == (time.Time{}) {
-		l.currentBucket.start = line.Date
-		//TODO set end right away?
-	}
-	if line.Date != (time.Time{}) && line.Date.After(l.currentBucket.end) {
-		l.currentBucket.end = line.Date
+		l.newBucket(line.Date)
 	}
 
+	//TODO handle time jumps of >1bucket here
 	if line.Date.After(l.currentBucket.start.Add(l.bucketDuration)) {
-		l.flushBucket(line.Date)
+		l.flushBucket()
 	}
 
 	l.currentBucket.cnt++
 	_, resource, _ := line.RequestFields()
 	if resource != "" {
-		if resURL, err := url.Parse(resource); err != nil {
-			//TODO log bad url
+		sec := section(resource)
+		if cnt, ok := l.summary[sec]; ok {
+			l.summary[sec] = cnt + 1
 		} else {
-			sec := section(resURL)
-			if cnt, ok := l.summary[sec]; ok {
-				l.summary[sec] = cnt + 1
-			} else {
-				l.summary[sec] = 1
-			}
+			l.summary[sec] = 1
 		}
 	}
 }
 
-// -buckets >10s OK? (break it down into range of stuff, range of nothing, then start the new bucket)
-// if we bump the end TS based on the line, then we can compare it against
-//then end arg and emit an additional bucket of 0 activity...
-//TODO but is this worth it?
-
-//TODO simpler: if currentBucket.end -> end > bucketDuration, then emit an empty bucket
-func (l *logmon) flushBucket(nextStart time.Time) {
-	if l.currentBucket.start == (time.Time{}) {
-		//TODO flush empty bucket for nextStart-bucketDuration
-		//TODO start new, return
-	}
-	if l.currentBucket.end == (time.Time{}) {
-		if nextStart == (time.Time{}) {
-			l.currentBucket.end = l.currentBucket.start.Add(l.bucketDuration)
-		} else {
-			l.currentBucket.end = nextStart
-		}
-	}
-
+//TODO doc
+func (l *logmon) flushBucket() {
 	fmt.Fprintf(l, "%s - %s\n", l.currentBucket.start.Format(clf.Layout), l.currentBucket.end.Format(clf.Layout))
 	//TODO sort and limit
 	fmt.Fprintf(l, "\tSection Hits: %v\n", l.summary)
 
 	// TODO check for high/low traffic switch
 
-	l.newBucket(nextStart)
+	l.newBucket(l.currentBucket.end)
 }
 
 func (l *logmon) newBucket(s time.Time) {
-	l.currentBucket = bucket{start: s}
+	l.currentBucket = bucket{start: s, end: s.Add(l.bucketDuration)}
 	l.summary = make(map[string]int)
 	l.timeout = time.After(l.bucketDuration)
 }
@@ -188,22 +160,28 @@ func (l *logmon) newBucket(s time.Time) {
 // The section function returns a resource URL's section.
 // a section is defined as being what's before the second '/' in a URL. i.e.
 // the section for "http://my.site.com/pages/create' is "http://my.site.com/pages"
-func section(resource *url.URL) string {
-	var b bytes.Buffer
-	if resource.Scheme != "" {
-		fmt.Fprintf(&b, "%s://", resource.Scheme)
-	}
-	log.Println("path", resource.Path) //TODO
-
-	var prefix string
-	idx := strings.IndexRune(resource.Path[1:], '/')
-	if idx == -1 {
-		prefix = resource.Path
+func section(resource string) string {
+	// Skip over the schema
+	schema := strings.Index(resource, "://")
+	if schema == -1 {
+		schema = 0
 	} else {
-		prefix = resource.Path[:idx+1]
+		schema += 3
 	}
-	fmt.Fprintf(&b, "%s%s", resource.Host, prefix)
-	return b.String()
+
+	firstSlash := strings.Index(resource[schema:], "/")
+	if firstSlash == -1 {
+		// No path
+		return resource
+	}
+	firstSlash += 1
+
+	secondSlash := strings.Index(resource[schema+firstSlash:], "/")
+	if secondSlash == -1 {
+		// No sub-path
+		return resource
+	}
+	return resource[:schema+firstSlash+secondSlash]
 }
 
 //TODO doc
