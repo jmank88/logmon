@@ -13,7 +13,7 @@ go build
 >  -h int
 >    	High traffic threshold. A high traffic alert will be triggered when the average traffic per 10s over the last 2m0s exceeds this value. (default 10)
 
-logmon -f some/log/file.txt
+logmon -f lib/testdata/input/high-traffic.txt
 >10/Oct/2000:13:55:36 -0700 - 10/Oct/2000:13:55:46 -0700
 >	Section Hits: map[http://my.site.com/pages:11]
 >10/Oct/2000:13:55:46 -0700 - 10/Oct/2000:13:55:56 -0700
