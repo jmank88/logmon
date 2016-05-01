@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	DefaultBucketDuration       = 10 * time.Second
+	DefaultThresholdDuration    = 10 * time.Second
 	DefaultHighTrafficDuration  = 2 * time.Minute
 	DefaultHighTrafficThreshold = 10
 )
@@ -20,19 +20,19 @@ const (
 type logger struct {
 	io.Writer
 
-	// Every bucket will be at least this long.
-	bucketDuration time.Duration
-	// High traffic will be measured enough recent buckets to cover at least this length.
+	// Every interval will be at least this long.
+	intervalDuration time.Duration
+	// High traffic will be measured enough recent intervals to cover at least this length.
 	httDuration time.Duration
-	// A high traffic alert will be triggered when the average traffic per bucket over the last httDuration exceeds this value.
+	// A high traffic alert will be triggered when the average traffic per interval over the last httDuration exceeds this value.
 	highTrafficThreshold int
 
-	currentBucket bucket
+	currentInterval interval
 	// Hit counts for sections
 	summary map[string]int
 	//TODO more summary stats
 
-	*buckets
+	*intervals
 
 	timeout <-chan time.Time
 
@@ -40,7 +40,7 @@ type logger struct {
 }
 
 //TODO doc
-func Monitor(r io.Reader, w io.Writer, bucketDuration, httDuration time.Duration, highTrafficThreshold int) error {
+func Monitor(r io.Reader, w io.Writer, intervalDuration, httDuration time.Duration, highTrafficThreshold int) error {
 	// Lines are sent to the logger through this channel
 	lines := make(chan *clf.Line)
 	// Logger signals completion on this channel.
@@ -48,12 +48,12 @@ func Monitor(r io.Reader, w io.Writer, bucketDuration, httDuration time.Duration
 
 	br := bufio.NewReader(r)
 
-	bucketCnt := int(httDuration/bucketDuration) + 1
+	intervalCnt := int(httDuration/intervalDuration) + 1
 	l := &logger{
 		Writer:               w,
-		bucketDuration:       bucketDuration,
+		intervalDuration:     intervalDuration,
 		httDuration:          httDuration,
-		buckets:              newBuckets(bucketCnt),
+		intervals:            newIntervals(intervalCnt),
 		highTrafficThreshold: highTrafficThreshold,
 	}
 
@@ -90,7 +90,7 @@ func Monitor(r io.Reader, w io.Writer, bucketDuration, httDuration time.Duration
 func (l *logger) log(lines chan *clf.Line, done chan empty) {
 	defer func() {
 		// Flush and signal completion
-		l.flushBucket()
+		l.flushInterval()
 		done <- empty{}
 	}()
 	for {
@@ -102,7 +102,7 @@ func (l *logger) log(lines chan *clf.Line, done chan empty) {
 			}
 			l.handle(line)
 		default:
-			// Block until another line is available, or this bucket times out.
+			// Block until another line is available, or this interval times out.
 			select {
 			case line, ok := <-lines:
 				if !ok {
@@ -110,24 +110,23 @@ func (l *logger) log(lines chan *clf.Line, done chan empty) {
 				}
 				l.handle(line)
 			case <-l.timeout:
-				l.flushBucket()
+				l.flushInterval()
 			}
 		}
 	}
 }
 
 func (l *logger) handle(line *clf.Line) {
-	if l.currentBucket.start == (time.Time{}) {
-		l.newBucket(line.Date)
+	if l.currentInterval.start == (time.Time{}) {
+		l.newInterval(line.Date)
 	}
 
-	if line.Date.After(l.currentBucket.start.Add(l.bucketDuration)) {
-		//TODO handle time jumps of >1bucket here
-		//if after 2*bucketDuration
-		l.flushBucket()
+	if line.Date.After(l.currentInterval.start.Add(l.intervalDuration)) {
+		//TODO handle time jumps of >1 interval here
+		l.flushInterval()
 	}
 
-	l.currentBucket.cnt++
+	l.currentInterval.cnt++
 	_, resource, _ := line.RequestFields()
 	if resource != "" {
 		sec := section(resource)
@@ -140,30 +139,30 @@ func (l *logger) handle(line *clf.Line) {
 }
 
 //TODO doc
-func (l *logger) flushBucket() {
-	fmt.Fprintf(l, "%s - %s\n", l.currentBucket.start.Format(clf.Layout), l.currentBucket.end.Format(clf.Layout))
+func (l *logger) flushInterval() {
+	fmt.Fprintf(l, "%s - %s\n", l.currentInterval.start.Format(clf.Layout), l.currentInterval.end.Format(clf.Layout))
 	//TODO sort and limit
 	fmt.Fprintf(l, "\tSection Hits: %v\n", l.summary)
 
-	l.buckets.put(l.currentBucket)
+	l.intervals.put(l.currentInterval)
 
-	if avg := l.buckets.avgTraffic(l.currentBucket.end.Add(-l.httDuration)); avg > l.highTrafficThreshold {
-		fmt.Fprintf(l, "High traffic generated an alert - hits = %d, triggered at %s\n", avg, l.currentBucket.end.Format(clf.Layout))
+	if avg := l.intervals.avgTraffic(l.currentInterval.end.Add(-l.httDuration)); avg > l.highTrafficThreshold {
+		fmt.Fprintf(l, "High traffic generated an alert - hits = %d, triggered at %s\n", avg, l.currentInterval.end.Format(clf.Layout))
 		l.highTraffic = true
 	} else {
 		if l.highTraffic {
-			fmt.Fprintf(l, "Recovered from high traffic at %s\n", l.currentBucket.end.Format(clf.Layout))
+			fmt.Fprintf(l, "Recovered from high traffic at %s\n", l.currentInterval.end.Format(clf.Layout))
 			l.highTraffic = false
 		}
 	}
 
-	l.newBucket(l.currentBucket.end)
+	l.newInterval(l.currentInterval.end)
 }
 
-func (l *logger) newBucket(s time.Time) {
-	l.currentBucket = bucket{start: s, end: s.Add(l.bucketDuration)}
+func (l *logger) newInterval(s time.Time) {
+	l.currentInterval = interval{start: s, end: s.Add(l.intervalDuration)}
 	l.summary = make(map[string]int)
-	l.timeout = time.After(l.bucketDuration)
+	l.timeout = time.After(l.intervalDuration)
 }
 
 // The section function returns a resource URL's section.
@@ -194,31 +193,31 @@ func section(resource string) string {
 }
 
 //TODO doc
-type bucket struct {
+type interval struct {
 	start, end time.Time
 	cnt        int
 }
 
-// A slice of buckets used as a circular buffer
-type buckets struct {
-	slice []bucket
+// A slice of intervals used as a circular buffer
+type intervals struct {
+	slice []interval
 	idx   int
 }
 
-func newBuckets(cnt int) *buckets {
-	return &buckets{slice: make([]bucket, cnt)}
+func newIntervals(cnt int) *intervals {
+	return &intervals{slice: make([]interval, cnt)}
 }
 
-func (bs *buckets) put(b bucket) {
+func (bs *intervals) put(b interval) {
 	if bs.idx+1 > len(bs.slice) {
 		bs.idx = 0
 	}
 	bs.slice[bs.idx] = b
 }
 
-// The avgTraffic function returns the average traffic per bucket for
-// all buckets which overlap or follow start.
-func (bs *buckets) avgTraffic(start time.Time) int {
+// The avgTraffic function returns the average traffic per interval for
+// all intervals which overlap or follow start.
+func (bs *intervals) avgTraffic(start time.Time) int {
 	var sum, cnt int
 	for _, b := range bs.slice {
 		if b.end.After(start) {

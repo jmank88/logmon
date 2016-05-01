@@ -11,7 +11,7 @@ func TestMonitor(t *testing.T) {
 	for _, file := range []string{
 		"single-line",
 		"multi-line",
-		"multi-bucket",
+		"multi-interval",
 		"high-traffic",
 	} {
 		in, err := os.Open("testdata/input/" + file + ".txt")
@@ -28,7 +28,7 @@ func TestMonitor(t *testing.T) {
 		}
 
 		var b bytes.Buffer
-		err = Monitor(in, &b, DefaultBucketDuration, DefaultHighTrafficDuration, DefaultHighTrafficThreshold)
+		err = Monitor(in, &b, DefaultThresholdDuration, DefaultHighTrafficDuration, DefaultHighTrafficThreshold)
 		if err != nil {
 			t.Fatal("unexpected error calling Monitor: ", err)
 		}
