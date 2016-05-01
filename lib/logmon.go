@@ -10,6 +10,12 @@ import (
 	"github.com/jmank88/logmon/lib/internal/clf"
 )
 
+const (
+	DefaultBucketDuration       = 10 * time.Second
+	DefaultHighTrafficDuration  = 2 * time.Minute
+	DefaultHighTrafficThreshold = 10
+)
+
 //TODO doc
 type logmon struct {
 	// Log source to be read from.

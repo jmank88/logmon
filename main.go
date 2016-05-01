@@ -4,19 +4,13 @@ import (
 	"flag"
 	"log"
 	"os"
-	"time"
 
 	"github.com/jmank88/logmon/lib"
 )
 
 var (
-	highTrafficThreshold = flag.Int("h", 1000, "High traffic threshold.")
-	file                 = flag.String("f", "", "Optional input file, to be used in place of stdin.")
-)
-
-const (
-	bucketDuration = 10 * time.Second
-	httDuration    = 2 * time.Minute
+	htt  = flag.Int("h", logmon.DefaultHighTrafficThreshold, "High traffic threshold.")
+	file = flag.String("f", "", "Optional input file, to be used in place of stdin.")
 )
 
 func main() {
@@ -33,7 +27,7 @@ func main() {
 		}
 	}
 
-	lm := logmon.NewLogmon(input, os.Stdout, bucketDuration, httDuration, *highTrafficThreshold)
+	lm := logmon.NewLogmon(input, os.Stdout, logmon.DefaultBucketDuration, logmon.DefaultHighTrafficDuration, *htt)
 	if err := lm.Monitor(); err != nil {
 		log.Println("monitoring quit unexpectedly: ", err)
 	}

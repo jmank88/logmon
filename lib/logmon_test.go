@@ -5,7 +5,6 @@ import (
 	"io/ioutil"
 	"os"
 	"testing"
-	"time"
 )
 
 func TestMonitor(t *testing.T) {
@@ -29,7 +28,7 @@ func TestMonitor(t *testing.T) {
 		}
 
 		var b bytes.Buffer
-		lm := NewLogmon(in, &b, 10*time.Second, 2*time.Minute, 10)
+		lm := NewLogmon(in, &b, DefaultBucketDuration, DefaultHighTrafficDuration, DefaultHighTrafficThreshold)
 		if err := lm.Monitor(); err != nil {
 			t.Fatal("unexpected error calling Monitor: ", err)
 		}
