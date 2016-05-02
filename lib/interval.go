@@ -18,15 +18,14 @@ func newIntervals(cnt int) *intervals {
 	return &intervals{slice: make([]interval, cnt)}
 }
 
-//TODO test
 func (bs *intervals) put(b interval) {
-	if bs.idx+1 > len(bs.slice) {
+	bs.slice[bs.idx] = b
+	bs.idx++
+	if bs.idx >= len(bs.slice) {
 		bs.idx = 0
 	}
-	bs.slice[bs.idx] = b
 }
 
-//TODO test
 // The avgTraffic function returns the average traffic per interval for
 // all intervals which overlap or follow start.
 func (bs *intervals) avgTraffic(start time.Time) int {
