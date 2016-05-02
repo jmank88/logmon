@@ -16,7 +16,7 @@ func (s stats) add(key string) {
 	}
 }
 
-//TODo doc, test
+// The top method returns the top cnt entries from s, from greatest to least.
 func (s stats) top(cnt int) []entry {
 	var es entries
 	for k, v := range s {
