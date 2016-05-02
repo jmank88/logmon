@@ -29,7 +29,7 @@ type logger struct {
 
 	currentInterval interval
 	// Hit counts for sections
-	summary map[string]int
+	sectionHits stats
 	//TODO more summary stats
 
 	*intervals
@@ -135,19 +135,15 @@ func (l *logger) handle(line *clf.Line) {
 	_, resource, _ := line.RequestFields()
 	if resource != "" {
 		sec := section(resource)
-		if cnt, ok := l.summary[sec]; ok {
-			l.summary[sec] = cnt + 1
-		} else {
-			l.summary[sec] = 1
-		}
+		l.sectionHits.add(sec)
 	}
 }
 
 // The flushInterval method logs a summary for the current interval and starts a new one.
 func (l *logger) flushInterval() {
 	fmt.Fprintf(l, "%s - %s\n", l.currentInterval.start.Format(clf.Layout), l.currentInterval.end.Format(clf.Layout))
-	//TODO sort and limit
-	fmt.Fprintf(l, "\tSection Hits: %v\n", l.summary)
+	fmt.Fprintf(l, "\tTotal Hits: %d\n", l.currentInterval.cnt)
+	fmt.Fprintf(l, "\tTop Sections: %v\n", l.sectionHits.top(5))
 
 	l.intervals.put(l.currentInterval)
 
@@ -167,7 +163,7 @@ func (l *logger) flushInterval() {
 // The newInterval method begins a new interval at start.
 func (l *logger) newInterval(start time.Time) {
 	l.currentInterval = interval{start: start, end: start.Add(l.intervalDuration)}
-	l.summary = make(map[string]int)
+	l.sectionHits = newStats()
 	l.timeout = time.After(l.intervalDuration)
 }
 
@@ -196,45 +192,6 @@ func section(resource string) string {
 		return resource
 	}
 	return resource[:schema+firstSlash+secondSlash]
-}
-
-// An interval holds a hit count for a time range.
-type interval struct {
-	start, end time.Time
-	cnt        int
-}
-
-// A slice of intervals used as a circular buffer.
-type intervals struct {
-	slice []interval
-	idx   int
-}
-
-func newIntervals(cnt int) *intervals {
-	return &intervals{slice: make([]interval, cnt)}
-}
-
-func (bs *intervals) put(b interval) {
-	if bs.idx+1 > len(bs.slice) {
-		bs.idx = 0
-	}
-	bs.slice[bs.idx] = b
-}
-
-// The avgTraffic function returns the average traffic per interval for
-// all intervals which overlap or follow start.
-func (bs *intervals) avgTraffic(start time.Time) int {
-	var sum, cnt int
-	for _, b := range bs.slice {
-		if b.end.After(start) {
-			sum += b.cnt
-			cnt++
-		}
-	}
-	if cnt == 0 {
-		return 0
-	}
-	return sum / cnt
 }
 
 type empty struct{}
