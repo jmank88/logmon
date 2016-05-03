@@ -21,9 +21,9 @@ const (
 type logger struct {
 	io.Writer
 
-	// Every interval will be at least this long.
+	// The length of each interval.
 	intervalDuration time.Duration
-	// High traffic will be measured enough recent intervals to cover at least this length.
+	// High traffic will be measured against enough recent intervals to cover at least this length.
 	httDuration time.Duration
 	// A high traffic alert will be triggered when the average traffic per interval over the last httDuration exceeds this value.
 	highTrafficThreshold int
@@ -42,16 +42,14 @@ type logger struct {
 	highTraffic bool
 }
 
-// The Monitor function monitors lines read from r, and writes summaries to w.
+// The Monitor function monitors lines read from r, while writing summaries and alerts to w.
 // The frequency of logging is controlled by intervalDuration.
 // Traffic exceeding highTrafficThreshold per intervalDuration over httDuration will trigger alerts.
 func Monitor(r io.Reader, w io.Writer, intervalDuration, httDuration time.Duration, highTrafficThreshold int) error {
-	// Lines are sent to the logger through this channel
+	// Lines are sent to the logger through this channel.
 	lines := make(chan *clf.Line)
-	// Logger signals completion on this channel.
+	// The logger signals completion on this channel.
 	done := make(chan empty)
-
-	br := bufio.NewReader(r)
 
 	intervalCnt := int(httDuration/intervalDuration) + 1
 	l := &logger{
@@ -69,6 +67,8 @@ func Monitor(r io.Reader, w io.Writer, intervalDuration, httDuration time.Durati
 		close(lines)
 		<-done
 	}()
+
+	br := bufio.NewReader(r)
 
 	var eof bool
 	for !eof {
@@ -92,7 +92,7 @@ func Monitor(r io.Reader, w io.Writer, intervalDuration, httDuration time.Durati
 	return nil
 }
 
-// The log method logs summaries of data from lines until it is closed.
+// The log method writes summaries and alerts based on data from lines until it is closed.
 // It sends on done when complete.
 func (l *logger) log(lines chan *clf.Line, done chan empty) {
 	defer func() {
@@ -162,6 +162,7 @@ func (l *logger) handle(line *clf.Line) {
 }
 
 // The flushInterval method logs a summary for the current interval and starts a new one.
+// It also may log high traffic alerts or recoveries based on historical hit counts.
 func (l *logger) flushInterval() {
 	fmt.Fprintf(l, "%s - %s\n", l.currentInterval.start.Format(clf.Layout), l.currentInterval.end.Format(clf.Layout))
 	fmt.Fprintf(l, "\tTotal Hits: %d\n", l.currentInterval.cnt)
@@ -196,8 +197,8 @@ func (l *logger) newInterval(start time.Time) {
 }
 
 // The section function returns a resource URL's section.
-// a section is defined as being what's before the second '/' in a URL. i.e.
-// the section for "http://my.site.com/pages/create' is "http://my.site.com/pages"
+// A section is defined as being what's before the second '/' in a URL. i.e.
+// the section for "http://my.site.com/pages/create' is "http://my.site.com/pages".
 func section(resource string) string {
 	// Skip over the schema
 	schema := strings.Index(resource, "://")
