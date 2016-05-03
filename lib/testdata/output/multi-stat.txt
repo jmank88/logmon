@@ -1,4 +1,7 @@
 10/Oct/2000:13:55:36 -0700 - 10/Oct/2000:13:55:46 -0700
 	Total Hits: 21
 	Top Sections: [{http://my.site.com/a 6} {http://my.site.com/c 5} {http://my.site.com/d 4} {http://my.site.com/b 3} {http://my.site.com/e 2}]
+	Top Methods: [{GET 6} {PUT 5} {HEAD 4} {DELETE 3} {POST 2}]
+	Top Protocols: [{HTTP/1.0 11} {HTTP/2.0 5} {HTTP/1.1 4} {HTTP/0.9 1}]
+	Top Status Codes: [{200 11} {400 4} {500 3} {404 2} {202 1}]
 High traffic generated an alert - hits = 21, triggered at 10/Oct/2000:13:55:46 -0700

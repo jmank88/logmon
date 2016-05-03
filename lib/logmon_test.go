@@ -13,7 +13,7 @@ func TestMonitor(t *testing.T) {
 		"multi-line",
 		"multi-interval",
 		"high-traffic",
-		"multi-section",
+		"multi-stat",
 	} {
 		in, err := os.Open("testdata/input/" + file + ".txt")
 		if err != nil {

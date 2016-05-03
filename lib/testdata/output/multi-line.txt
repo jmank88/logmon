@@ -1,3 +1,6 @@
 10/Oct/2000:13:55:36 -0700 - 10/Oct/2000:13:55:46 -0700
 	Total Hits: 6
 	Top Sections: [{http://my.site.com/pages 6}]
+	Top Methods: [{GET 6}]
+	Top Protocols: [{HTTP/1.0 6}]
+	Top Status Codes: [{200 6}]

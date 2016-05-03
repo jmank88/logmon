@@ -15,15 +15,22 @@ go build
 
 logmon -f lib/testdata/input/high-traffic.txt
 >10/Oct/2000:13:55:36 -0700 - 10/Oct/2000:13:55:46 -0700
->	Section Hits: map[http://my.site.com/pages:11]
+>	Total Hits: 11
+>	Top Sections: [{http://my.site.com/pages 11}]
+>	Top Methods: [{GET 11}]
+>	Top Protocols: [{HTTP/1.0 11}]
+>	Top Status Codes: [{200 11}]
 >High traffic generated an alert - hits = 11, triggered at 10/Oct/2000:13:55:46 -0700
 >10/Oct/2000:13:55:46 -0700 - 10/Oct/2000:13:55:56 -0700
->	Section Hits: map[http://my.site.com/pages:1]
+>	Total Hits: 1
+>	Top Sections: [{http://my.site.com/pages 1}]
+>	Top Methods: [{GET 1}]
+>	Top Protocols: [{HTTP/1.0 1}]
+>	Top Status Codes: [{200 1}]
 >Recovered from high traffic at 10/Oct/2000:13:55:56 -0700
 ```
 
 ## Features
-TODO expand on each of these points
 
 [x] Consume an actively written-to w3c-formatted HTTP access log (https://en.wikipedia.org/wiki/Common_Log_Format)
 
@@ -31,8 +38,7 @@ Logs can be read from stdin, or from a file via the -f flag.
 
 [x] Every 10s, display in the console the sections of the web site with the most hits (a section is defined as being what's before the second '/' in a URL. i.e. the section for "http://my.site.com/pages/create' is "http://my.site.com/pages"), as well as interesting summary statistics on the traffic as a whole.
 
-Every 10s, a summary of hit counts per section is written.
-TODO more stats (method and protocol summary)
+Every 10s, the total hits and a summary of hit counts per section, method, protocol, and status code is written.
 
 [x] Make sure a user can keep the console app running and monitor traffic on their machine
 

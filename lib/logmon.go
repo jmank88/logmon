@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/jmank88/logmon/lib/internal/clf"
+	"strconv"
 )
 
 const (
@@ -29,8 +30,10 @@ type logger struct {
 
 	currentInterval interval
 	// Hit counts for sections
-	sectionHits stats
-	//TODO more summary stats
+	sectionHits  stats
+	methodHits   stats
+	protocolHits stats
+	statCodeHits stats
 
 	*intervals
 
@@ -132,10 +135,19 @@ func (l *logger) handle(line *clf.Line) {
 	}
 
 	l.currentInterval.cnt++
-	_, resource, _ := line.RequestFields()
+	method, resource, protocol := line.RequestFields()
 	if resource != "" {
 		sec := section(resource)
 		l.sectionHits.add(sec)
+	}
+	if method != "" {
+		l.methodHits.add(method)
+	}
+	if protocol != "" {
+		l.protocolHits.add(protocol)
+	}
+	if line.Status != 0 {
+		l.statCodeHits.add(strconv.Itoa(line.Status))
 	}
 }
 
@@ -144,6 +156,9 @@ func (l *logger) flushInterval() {
 	fmt.Fprintf(l, "%s - %s\n", l.currentInterval.start.Format(clf.Layout), l.currentInterval.end.Format(clf.Layout))
 	fmt.Fprintf(l, "\tTotal Hits: %d\n", l.currentInterval.cnt)
 	fmt.Fprintf(l, "\tTop Sections: %v\n", l.sectionHits.top(5))
+	fmt.Fprintf(l, "\tTop Methods: %v\n", l.methodHits.top(5))
+	fmt.Fprintf(l, "\tTop Protocols: %v\n", l.protocolHits.top(5))
+	fmt.Fprintf(l, "\tTop Status Codes: %v\n", l.statCodeHits.top(5))
 
 	l.intervals.put(l.currentInterval)
 
@@ -164,6 +179,9 @@ func (l *logger) flushInterval() {
 func (l *logger) newInterval(start time.Time) {
 	l.currentInterval = interval{start: start, end: start.Add(l.intervalDuration)}
 	l.sectionHits = newStats()
+	l.methodHits = newStats()
+	l.protocolHits = newStats()
+	l.statCodeHits = newStats()
 	l.timeout = time.After(l.intervalDuration)
 }
 
