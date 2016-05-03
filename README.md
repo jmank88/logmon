@@ -50,13 +50,20 @@ A high traffic alert will be triggered when the average traffic per interval ove
 
 [x] Whenever the total traffic drops again below that value on average for the past 2 minutes, add another message detailing when the alert recovered
 
+A recovery message will be written when the average traffic per interval over the last httDuration drops back below the value specified by the -h flag.
+
 [x] Make sure all messages showing when alerting thresholds are crossed remain visible on the page for historical reasons.
 
 All alerts and summaries are written chronologically and can be easily searched/grepped for.
 
 [x] Write a test for the alerting logic
 
+The logmon_test.go file contains various tests, including one for high traffic alerts.
+
 ## Future Improvements
 
--
-TODO Explain how you’d improve on this application design
+- Expose the interval duration and high traffic duration parameters as command line flags
+
+- Make summary stats configurable and expose the parameters through the API and as command line flags
+
+- Better handling of bad data and/or out of order logs. Bad lines and (most) lines from the 'past' are ignored. Instead, they could be an additional type of summary stat.

@@ -4,15 +4,15 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/jmank88/logmon/lib/internal/clf"
-	"strconv"
 )
 
 const (
-	DefaultThresholdDuration    = 10 * time.Second
+	DefaultIntervalDuration     = 10 * time.Second
 	DefaultHighTrafficDuration  = 2 * time.Minute
 	DefaultHighTrafficThreshold = 10
 )
@@ -125,8 +125,15 @@ func (l *logger) log(lines chan *clf.Line, done chan empty) {
 
 // The handle method processes a single line.
 func (l *logger) handle(line *clf.Line) {
+	if line.Date == (time.Time{}) {
+		// Nowhere to put this.
+		return
+	}
 	if l.currentInterval.start == (time.Time{}) {
 		l.newInterval(line.Date)
+	} else if line.Date.Before(l.currentInterval.start) {
+		// Bad data. Can't go back in time.
+		return
 	}
 
 	if line.Date.After(l.currentInterval.end) {

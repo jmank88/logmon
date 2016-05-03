@@ -29,7 +29,7 @@ func TestMonitor(t *testing.T) {
 		}
 
 		var b bytes.Buffer
-		err = Monitor(in, &b, DefaultThresholdDuration, DefaultHighTrafficDuration, DefaultHighTrafficThreshold)
+		err = Monitor(in, &b, DefaultIntervalDuration, DefaultHighTrafficDuration, DefaultHighTrafficThreshold)
 		if err != nil {
 			t.Fatal("unexpected error calling Monitor: ", err)
 		}
