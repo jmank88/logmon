@@ -129,9 +129,12 @@ func (l *logger) handle(line *clf.Line) {
 		l.newInterval(line.Date)
 	}
 
-	if line.Date.After(l.currentInterval.start.Add(l.intervalDuration)) {
-		//TODO handle time jumps of >1 interval here
+	if line.Date.After(l.currentInterval.end) {
 		l.flushInterval()
+	}
+	// Skip over intervals with no traffic
+	for line.Date.After(l.currentInterval.end) {
+		l.newInterval(l.currentInterval.end)
 	}
 
 	l.currentInterval.cnt++

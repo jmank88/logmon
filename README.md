@@ -21,13 +21,13 @@ logmon -f lib/testdata/input/high-traffic.txt
 >	Top Protocols: [{HTTP/1.0 11}]
 >	Top Status Codes: [{200 11}]
 >High traffic generated an alert - hits = 11, triggered at 10/Oct/2000:13:55:46 -0700
->10/Oct/2000:13:55:46 -0700 - 10/Oct/2000:13:55:56 -0700
+>10/Oct/2000:13:57:36 -0700 - 10/Oct/2000:13:57:46 -0700
 >	Total Hits: 1
 >	Top Sections: [{http://my.site.com/pages 1}]
 >	Top Methods: [{GET 1}]
 >	Top Protocols: [{HTTP/1.0 1}]
 >	Top Status Codes: [{200 1}]
->Recovered from high traffic at 10/Oct/2000:13:55:56 -0700
+>Recovered from high traffic at 10/Oct/2000:13:57:46 -0700
 ```
 
 ## Features
@@ -58,4 +58,5 @@ All alerts and summaries are written chronologically and can be easily searched/
 
 ## Future Improvements
 
+-
 TODO Explain how you’d improve on this application design
