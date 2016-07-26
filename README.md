@@ -32,12 +32,12 @@ go build
 
 ## Features
 
-- Consumes an actively written-to w3c-formatted HTTP access log (https://en.wikipedia.org/wiki/Common_Log_Format). Logs can be read from stdin, or from a file via the -f flag.
+- Consumes an actively written-to [w3c-formatted HTTP access log](https://en.wikipedia.org/wiki/Common_Log_Format). Logs can be read from stdin, or from a file via the -f flag.
 
-- Every 10s, the total hits and a summary of hit counts per section, method, protocol, and status code is written (a section is defined as being what's before the second '/' in a URL. i.e. the section for "http://my.site.com/pages/create' is "http://my.site.com/pages").
+- Every 10s, the total hits and a summary of hit counts per section, method, protocol, and status code is written (a section is defined as being what's before the second `/` in a URL. i.e. the section for `http://my.site.com/pages/create` is `http://my.site.com/pages`).
 
 - The application remains running until it reaches EOF or an error is encountered.
- 
+
 - A high traffic alert will be triggered when the average traffic per interval over the last httDuration exceeds the value specified by the -h flag.
 
 - A recovery message will be written when the average traffic per interval over the last httDuration drops back below the value specified by the -h flag.
